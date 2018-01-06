@@ -33,6 +33,10 @@ case $1 in
         ;;
 
     "finish")
+        
+        read -p "What is the date of the ISO? (YYYYMM)" label
+        label=ARCH_$label
+
         rm archroot
         cp chroot_after $squashfsroot/chroot
         arch-chroot $squashfsroot /chroot
@@ -62,7 +66,6 @@ case $1 in
         cp customiso/arch/boot/x86_64/vmlinuz mnt/EFI/archiso/vmlinuz.efi
         cp customiso/arch/boot/x86_64/archiso.img mnt/EFI/archiso/archiso.img
         
-        label=ARCH_201611
         cd customiso
         genisoimage -l -r -J -V $label -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -c isolinux/boot.cat -o $path/arch-custom.iso ./
         
