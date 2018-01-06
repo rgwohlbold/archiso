@@ -1,0 +1,19 @@
+#!/bin/bash
+
+if [ $(whoami) != "root" ]; then
+    echo "This operation needs root privileges"
+    exit
+fi
+
+export TERM=xterm-256color
+
+if [ -f /boot/vmlinuz-linux ]; then
+    cat /etc/mkinitcpio.conf | sed s/HOOKS=\(.*\)/HOOKS=\("base udev memdisk archiso_shutdown archiso archiso_loop_mnt archiso_pxe_common archiso_pxe_nbd archiso_pxe_http archiso_pxe_nfs archiso_kms block pcmcia filesystems keyboard"\)/g > ~/init
+    rm /etc/mkinitcpio.conf
+    mv ~/init /etc/mkinitcpio.conf
+    mkinitcpio -p linux
+fi
+LANG=C pacman -Sl | awk '/\[installed\]$/ {print $1 "/" $2 "-" $3}' > /pkglist.txt
+pacman -Scc --noconfirm
+exit
+

@@ -1,0 +1,79 @@
+#!/bin/bash
+
+if [ $(whoami) != "root" ]; then
+    echo "This operation needs root privileges"
+    exit
+fi
+
+path=$(pwd)
+squashfsdir=$path/customiso/arch/x86_64
+squashfsroot=$squashfsdir/squashfs-root
+
+case $1 in
+    "prepare")
+        if [[ $2 = "" ]]; then
+            echo "Usage: $0 $1 <iso image>"
+            exit
+        fi
+        mount -t iso9660 -o loop $2 /mnt
+        cp -a /mnt customiso
+        umount /mnt
+        
+        cd customiso/arch/x86_64
+        unsquashfs airootfs.sfs
+        cd $path
+        if [ -f mirrorlist ]; then
+            cp $squashfsroot/etc/pacman.d/mirrorlist $squashfsroot/etc/pacman.d/mirrorlist.back
+            cp mirrorlist $squashfsroot/etc/pacman.d/mirrorlist
+        fi
+        cp chroot_before $squashfsroot/chroot
+        arch-chroot $squashfsroot /chroot
+        rm $squashfsroot/chroot
+        ln -s $squashfsroot archroot
+        ;;
+
+    "finish")
+        rm archroot
+        cp chroot_after $squashfsroot/chroot
+        arch-chroot $squashfsroot /chroot
+        rm $squashfsroot/chroot
+        
+        cp $squashfsroot/boot/vmlinuz-linux $path/customiso/arch/boot/x86_64/vmlinuz 2>/dev/null
+        cp $squashfsroot/boot/initramfs-linux.img $path/customiso/arch/boot/x86_64/archiso.img 2>/dev/null
+        mv $squashfsroot/pkglist.txt $path/customiso/arch/pkglist.x86_64.txt 2>/dev/null
+        
+        rm $squashfsdir/airootfs.sfs
+        mksquashfs $squashfsroot $squashfsdir/airootfs.sfs
+        rm -r $squashfsroot
+        md5sum $squashfsdir/airootfs.sfs > $squashfsdir/airootfs.md5
+        
+        cd $path
+        mkdir mnt
+        mount -t vfat -o loop customiso/EFI/archiso/efiboot.img mnt
+        
+        dd if=/dev/zero bs=1M count=50 of=efiboot-new.img
+        mkfs.fat -n "ARCHISO_EFI" efiboot-new.img
+        mkdir new
+        mount -t fat -o loop efiboot-new.img new
+        cp -r mnt/* new/
+        umount new mnt
+        mv efiboot-new.img customiso/EFI/archiso/efiboot.img
+        
+        cp customiso/arch/boot/x86_64/vmlinuz mnt/EFI/archiso/vmlinuz.efi
+        cp customiso/arch/boot/x86_64/archiso.img mnt/EFI/archiso/archiso.img
+        
+        label=ARCH_201611
+        cd customiso
+        genisoimage -l -r -J -V $label -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -c isolinux/boot.cat -o $path/arch-custom.iso ./
+        
+        cd $path
+        rm -rf customiso mnt new
+        ;;
+    "clean")
+        cd $path
+        rm -rf customiso mnt new archroot
+        ;;
+    *)
+        echo "Usage: $0 <prepare|finish>"
+        ;;
+esac
